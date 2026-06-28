@@ -186,7 +186,7 @@ const SUPABASE_URL = "https://ueiepzpwgmmiextweytk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_4cbXAVeyoVJxxdYAxV01Ig_WlcS9epl";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const START = 200000;
-const GOAL = 12;   // expected number of check-ins — drives the progress bar (change anytime)
+const GOAL = 8;   // expected number of check-ins — drives the progress bar (change anytime)
 
 // admin gate: the Reset button only appears when the URL carries ?admin=<ADMIN_KEY>
 // presenter opens  .../?admin=chan2026  ·  public QR points to the plain URL (no Reset)
@@ -336,7 +336,7 @@ function render(v){
         ${goalHTML}
         <div class="qrwrap"><img class="qr" src="qr.png" alt="Check-in QR"><div class="qrcap">SCAN TO CHECK IN</div></div>
       </div>
-      ${a.length ? `<div class="card" style="margin-top:14px"><div class="sec">Check-ins over time</div>${checkinChart(a)}</div>` : ``}
+      ${a.length ? `<div class="card" style="margin-top:14px"><div class="sec">Total checked in</div>${checkinChart(a)}</div>` : ``}
       <div class="card" style="margin-top:14px">
         <div class="sec">Live attendance</div>
         ${list}
