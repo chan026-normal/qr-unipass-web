@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="color-scheme" content="light dark" />
 <title>QR UniPass</title>
 <style>
   :root{
+    color-scheme:light;
     --navy:#14294C; --teal:#0CA678; --teal-dark:#0F6E56;
     --bg:#eef1f6; --card:#ffffff; --ink:#14294C; --muted:#6b7785;
     --line:#e3e8ef; --soon:#9aa6b2;
@@ -105,6 +107,7 @@
 
   /* dark mode — controlled by the header toggle (defaults to the device setting) */
   [data-theme="dark"]{
+    color-scheme:dark;
     --navy:#dfe8f5; --teal:#1bd6a0; --teal-dark:#3aebad;
     --bg:#0b1525; --card:#16243d; --ink:#e7eff9;
     --muted:#9db0c6; --line:#28384f; --soon:#5d6e84;
