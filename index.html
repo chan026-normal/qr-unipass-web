@@ -21,9 +21,14 @@
     border-radius:18px;padding:18px 18px 16px;color:#fff;box-shadow:0 8px 24px rgba(20,41,76,.18);}
   .brand h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.2px;}
   .brand p{margin:3px 0 0;font-size:13px;color:rgba(255,255,255,.8);}
-  .dash-link{position:absolute;top:16px;right:16px;font-size:12px;color:#bfe9d8;
+  .brand-actions{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px;}
+  .dash-link{font-size:12px;color:#bfe9d8;
     background:rgba(12,166,120,.22);border:0;border-radius:20px;padding:6px 12px;cursor:pointer;}
   .dash-link:hover{background:rgba(12,166,120,.35);}
+  .icon-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;
+    border:0;border-radius:50%;background:rgba(255,255,255,.16);color:#cfe9df;cursor:pointer;}
+  .icon-btn:hover{background:rgba(255,255,255,.28);}
+  .icon-btn svg{width:17px;height:17px;display:block;}
 
   /* module chips */
   .modules{display:flex;gap:8px;margin:12px 0 16px;}
@@ -98,35 +103,37 @@
   #confetti{position:fixed;inset:0;pointer-events:none;z-index:50;}
   .foot{text-align:center;font-size:11px;color:var(--muted);margin-top:16px;}
 
-  /* dark mode — follows the device setting */
-  @media (prefers-color-scheme: dark){
-    :root{
-      --navy:#dfe8f5; --teal:#1bd6a0; --teal-dark:#3aebad;
-      --bg:#0b1525; --card:#16243d; --ink:#e7eff9;
-      --muted:#9db0c6; --line:#28384f; --soon:#5d6e84;
-    }
-    input{background:#0f1d31;color:var(--ink);}
-    .menu{background:#0f1d31;color:var(--ink);}
-    .btn.ghost{background:#22334e;color:var(--navy);}
-    .chip.soon{background:#16233a;}
-    .kpi{background:#1d2d48;}
-    .chart .bar{background:linear-gradient(180deg,#5cf3c4,#15c08c);}
-    .row.latest{background:#15402f;}
-    .row.latest span:first-child{color:#c4f6e2;}
-    .ok{background:#143a2c;border-color:#1f5b46;}
-    .ok h2,.ok .who{color:#e0f7ec;}
-    .flash.s{background:#143a2c;color:#cdeede;}
-    .flash.w{background:#3d2f12;color:#f1cf8a;}
+  /* dark mode — controlled by the header toggle (defaults to the device setting) */
+  [data-theme="dark"]{
+    --navy:#dfe8f5; --teal:#1bd6a0; --teal-dark:#3aebad;
+    --bg:#0b1525; --card:#16243d; --ink:#e7eff9;
+    --muted:#9db0c6; --line:#28384f; --soon:#5d6e84;
   }
+  [data-theme="dark"] input{background:#0f1d31;color:var(--ink);}
+  [data-theme="dark"] .menu{background:#0f1d31;color:var(--ink);}
+  [data-theme="dark"] .btn.ghost{background:#22334e;color:var(--navy);}
+  [data-theme="dark"] .chip.soon{background:#16233a;}
+  [data-theme="dark"] .kpi{background:#1d2d48;}
+  [data-theme="dark"] .chart .bar{background:linear-gradient(180deg,#5cf3c4,#15c08c);}
+  [data-theme="dark"] .row.latest{background:#15402f;}
+  [data-theme="dark"] .row.latest span:first-child{color:#c4f6e2;}
+  [data-theme="dark"] .ok{background:#143a2c;border-color:#1f5b46;}
+  [data-theme="dark"] .ok h2,[data-theme="dark"] .ok .who{color:#e0f7ec;}
+  [data-theme="dark"] .flash.s{background:#143a2c;color:#cdeede;}
+  [data-theme="dark"] .flash.w{background:#3d2f12;color:#f1cf8a;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>(function(){try{var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 </head>
 <body>
 <div class="app">
   <header class="brand">
     <h1>QR UniPass</h1>
     <p>One QR for the whole campus</p>
-    <button class="dash-link" onclick="show('dashboard')">Dashboard</button>
+    <div class="brand-actions">
+      <button class="icon-btn" onclick="toggleTheme()" title="Light / Dark" aria-label="Toggle theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
+      <button class="dash-link" onclick="show('dashboard')">Dashboard</button>
+    </div>
   </header>
 
   <nav class="modules" id="modules"></nav>
@@ -145,9 +152,16 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const START = 200000;
 
 // admin gate: the Reset button only appears when the URL carries ?admin=<ADMIN_KEY>
-// presenter opens  .../?admin=gybm2026  ·  public QR points to the plain URL (no Reset)
+// presenter opens  .../?admin=chan2026  ·  public QR points to the plain URL (no Reset)
 const ADMIN_KEY = "chan2026";
 const isAdmin = new URLSearchParams(location.search).get("admin") === ADMIN_KEY;
+
+// theme toggle (light/dark) — overrides the device default and remembers the choice
+function toggleTheme(){
+  const next = document.documentElement.getAttribute("data-theme")==="dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try{ localStorage.setItem("theme", next); }catch(e){}
+}
 
 // in-memory cache, kept in sync via initial load + realtime
 let rowsA = [];   // attendance: {id,name,student_id,created_at}
