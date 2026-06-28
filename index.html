@@ -102,6 +102,31 @@
   .kpi b{display:block;font-size:24px;color:var(--navy);line-height:1.1;}
   .kpi span{font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:600;}
 
+  /* arrival announcement (big name / milestone on the projector) */
+  .arrival{position:fixed;left:50%;top:16%;transform:translateX(-50%) translateY(-16px);
+    background:linear-gradient(135deg,#0CA678,#0F6E56);color:#fff;padding:16px 26px;border-radius:18px;
+    box-shadow:0 14px 44px rgba(12,166,120,.5);text-align:center;max-width:92vw;
+    opacity:0;pointer-events:none;z-index:70;transition:opacity .25s ease, transform .25s ease;}
+  .arrival.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .arrival .lab{font-size:12px;letter-spacing:2px;font-weight:700;opacity:.85;}
+  .arrival .nm{font-size:30px;font-weight:800;line-height:1.1;margin-top:4px;}
+
+  /* goal progress + rate */
+  .goalwrap{margin:14px 4px 0;}
+  .goaltext{display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;}
+  .goalbar{height:10px;background:var(--line);border-radius:6px;overflow:hidden;}
+  .goalfill{height:100%;background:linear-gradient(90deg,#0CA678,#0F6E56);border-radius:6px;transition:width .5s ease;}
+
+  /* present mode (projector) */
+  body.present{align-items:center;}
+  body.present .brand, body.present .modules, body.present .foot{display:none;}
+  body.present .app{max-width:680px;}
+  .present-stage{text-align:center;padding:24px 16px;}
+  .present-label{font-size:clamp(15px,3.2vw,22px);letter-spacing:3px;font-weight:700;color:var(--muted);}
+  .present-qr{width:min(48vw,280px);height:min(48vw,280px);margin:20px auto 10px;}
+  .present-num{font-size:clamp(96px,24vw,240px)!important;margin-top:6px;}
+  .present-exit{margin-top:22px;background:var(--card);color:var(--navy);border:1px solid var(--line);border-radius:14px;padding:11px 20px;font-weight:700;cursor:pointer;}
+
   #confetti{position:fixed;inset:0;pointer-events:none;z-index:50;}
   .foot{text-align:center;font-size:11px;color:var(--muted);margin-top:16px;}
 
@@ -118,6 +143,7 @@
   [data-theme="dark"] .chip.soon{background:#16233a;}
   [data-theme="dark"] .kpi{background:#1d2d48;}
   [data-theme="dark"] .chart .bar{background:linear-gradient(180deg,#5cf3c4,#15c08c);}
+  [data-theme="dark"] .goalfill{background:linear-gradient(90deg,#5cf3c4,#15c08c);}
   [data-theme="dark"] .row.latest{background:#15402f;}
   [data-theme="dark"] .row.latest span:first-child{color:#c4f6e2;}
   [data-theme="dark"] .ok{background:#143a2c;border-color:#1f5b46;}
@@ -146,6 +172,7 @@
   <p class="foot">Prototype · HTML version · live across devices</p>
 </div>
 <canvas id="confetti"></canvas>
+<div id="arrival" class="arrival" aria-hidden="true"></div>
 
 <script>
 // ---------- Supabase data layer (shared cloud DB; live across devices) ----------
@@ -153,6 +180,7 @@ const SUPABASE_URL = "https://ueiepzpwgmmiextweytk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_4cbXAVeyoVJxxdYAxV01Ig_WlcS9epl";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const START = 200000;
+const GOAL = 30;   // expected number of check-ins — drives the progress bar (change anytime)
 
 // admin gate: the Reset button only appears when the URL carries ?admin=<ADMIN_KEY>
 // presenter opens  .../?admin=chan2026  ·  public QR points to the plain URL (no Reset)
@@ -237,6 +265,7 @@ const svg=n=>`<svg viewBox="0 0 24 24">${ICON[n]}</svg>`;
 // ---------- views ----------
 let current="attendance";
 let prevCount=-1;   // last attendance count, to detect new arrivals (pulse + celebrate)
+let presentMode=false;   // projector full-screen view
 const MODS=[["attendance","Attendance",false],["cafeteria","Cafeteria",false],
             ["library","Library",true],["dormitory","Dormitory",true]];
 
@@ -275,30 +304,49 @@ function render(v){
   } else if(v==="dashboard"){
     const a=rowsA;
     const inc = (prevCount>=0 && a.length>prevCount);   // a new check-in just arrived
-    const list = a.length ? a.slice().reverse().map((r,i)=>
-      `<div class="row${i===0?' latest':''}"><span>${r.name||("ID "+r.student_id)}</span><span class="t">${hhmm(r.created_at)}</span></div>`).join("")
-      : `<div class="empty">No check-ins yet. Open the QR and check in.</div>`;
-    el.innerHTML=`<div class="card">
-      <div class="bignum${inc?' pulse':''}" id="cnt">0</div>
-      <div class="biglabel">CHECKED IN · LIVE</div>
-      <div class="qrwrap"><img class="qr" src="qr.png" alt="Check-in QR"><div class="qrcap">SCAN TO CHECK IN</div></div>
-    </div>
-    ${a.length ? `<div class="card" style="margin-top:14px"><div class="sec">Check-ins over time</div>${checkinChart(a)}</div>` : ``}
-    <div class="card" style="margin-top:14px">
-      <div class="sec">Live attendance</div>
-      ${list}
-    </div>
-    <div class="card" style="margin-top:14px">
-      <div class="sec">Cafeteria · live</div>
-      ${cafePanel()}
-    </div>
-    <div style="margin-top:14px">
-      ${isAdmin ? `<button class="btn ghost" onclick="resetAll()">Reset</button>` : ``}
-      <button class="btn ghost" style="margin-top:${isAdmin?8:0}px" onclick="show('attendance')">← Back to check-in</button>
-    </div>`;
+    const cutoff=Date.now()-30000;
+    const rate=a.filter(r=> new Date(r.created_at).getTime()>=cutoff).length;
+    const goalHTML=`<div class="goalwrap">
+        <div class="goaltext"><span>${a.length} / ${GOAL} checked in</span><span>${rate} in last 30s</span></div>
+        <div class="goalbar"><div class="goalfill" style="width:${Math.min(100, GOAL? a.length/GOAL*100:0)}%"></div></div>
+      </div>`;
+    if(presentMode){
+      el.innerHTML=`<div class="present-stage">
+        <div class="present-label">SCAN TO JOIN</div>
+        <img class="qr present-qr" src="qr.png" alt="Check-in QR">
+        <div class="bignum present-num${inc?' pulse':''}" id="cnt">0</div>
+        <div class="biglabel">CHECKED IN · LIVE</div>
+        ${goalHTML}
+        <button class="present-exit" onclick="togglePresent()">Exit present</button>
+      </div>`;
+    } else {
+      const list = a.length ? a.slice().reverse().map((r,i)=>
+        `<div class="row${i===0?' latest':''}"><span>${r.name||("ID "+r.student_id)}</span><span class="t">${hhmm(r.created_at)}</span></div>`).join("")
+        : `<div class="empty">No check-ins yet. Open the QR and check in.</div>`;
+      el.innerHTML=`<div class="card">
+        <div class="bignum${inc?' pulse':''}" id="cnt">0</div>
+        <div class="biglabel">CHECKED IN · LIVE</div>
+        ${goalHTML}
+        <div class="qrwrap"><img class="qr" src="qr.png" alt="Check-in QR"><div class="qrcap">SCAN TO CHECK IN</div></div>
+      </div>
+      ${a.length ? `<div class="card" style="margin-top:14px"><div class="sec">Check-ins over time</div>${checkinChart(a)}</div>` : ``}
+      <div class="card" style="margin-top:14px">
+        <div class="sec">Live attendance</div>
+        ${list}
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="sec">Cafeteria · live</div>
+        ${cafePanel()}
+      </div>
+      <div style="margin-top:14px">
+        <button class="btn ghost" onclick="togglePresent()">Present mode</button>
+        ${isAdmin ? `<button class="btn ghost" style="margin-top:8px" onclick="resetAll()">Reset</button>` : ``}
+        <button class="btn ghost" style="margin-top:8px" onclick="show('attendance')">← Back to check-in</button>
+      </div>`;
+    }
     const cntEl=document.getElementById("cnt");
     if(prevCount<0 || a.length!==prevCount) countUp(a.length); else cntEl.textContent=a.length;
-    if(inc) confetti();                 // celebrate the new arrival on the projector
+    celebrate(a, inc);                  // confetti + big name, milestone every 10
     prevCount=a.length;
   }
 }
@@ -379,6 +427,47 @@ function countUp(target){
 }
 
 // (live updates now come from Supabase realtime — see subscribeRealtime)
+
+// big arrival / milestone announcement on the dashboard
+let arrivalTimer=null;
+function announce(label, big){
+  const el=document.getElementById("arrival"); if(!el) return;
+  el.innerHTML='<div class="lab"></div><div class="nm"></div>';
+  el.querySelector(".lab").textContent=label;
+  el.querySelector(".nm").textContent=big;
+  el.classList.add("show");
+  clearTimeout(arrivalTimer);
+  arrivalTimer=setTimeout(()=>el.classList.remove("show"), 2600);
+}
+
+// celebrate a new check-in: confetti + name, with a bigger moment every 10 (milestone)
+function celebrate(rows, inc){
+  if(!inc) return;
+  const r=rows[rows.length-1];
+  const name=(r && (r.name||("ID "+r.student_id)))||"Someone";
+  const crossed = Math.floor(rows.length/10) > Math.floor(Math.max(prevCount,0)/10);
+  if(crossed && rows.length>=10){
+    for(let i=0;i<3;i++) setTimeout(confetti, i*200);   // bigger burst on a milestone
+    announce("MILESTONE", rows.length+" CHECKED IN");
+  }else{
+    confetti();
+    announce("JUST CHECKED IN", name);
+  }
+}
+
+// projector full-screen present mode (giant QR + live count)
+function togglePresent(){
+  presentMode=!presentMode;
+  document.body.classList.toggle("present", presentMode);
+  try{
+    if(presentMode && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    else if(!presentMode && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+  }catch(e){}
+  render("dashboard");
+}
+document.addEventListener("fullscreenchange",()=>{
+  if(!document.fullscreenElement && presentMode){ presentMode=false; document.body.classList.remove("present"); render("dashboard"); }
+});
 
 // confetti burst
 function confetti(){
