@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>QR UniPass</title>
+<style>
+  :root{
+    --navy:#14294C; --teal:#0CA678; --teal-dark:#0F6E56;
+    --bg:#eef1f6; --card:#ffffff; --ink:#14294C; --muted:#6b7785;
+    --line:#e3e8ef; --soon:#9aa6b2;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    display:flex;justify-content:center;padding:18px 14px 40px;}
+  .app{width:100%;max-width:430px;}
+
+  /* header */
+  .brand{position:relative;background:linear-gradient(135deg,#14294C 0%,#1d3a6b 100%);
+    border-radius:18px;padding:18px 18px 16px;color:#fff;box-shadow:0 8px 24px rgba(20,41,76,.18);}
+  .brand h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.2px;}
+  .brand p{margin:3px 0 0;font-size:13px;color:rgba(255,255,255,.8);}
+  .dash-link{position:absolute;top:16px;right:16px;font-size:12px;color:#bfe9d8;
+    background:rgba(12,166,120,.22);border:0;border-radius:20px;padding:6px 12px;cursor:pointer;}
+  .dash-link:hover{background:rgba(12,166,120,.35);}
+
+  /* module chips */
+  .modules{display:flex;gap:8px;margin:12px 0 16px;}
+  .chip{flex:1;border:0;background:var(--card);border-radius:14px;padding:10px 4px;text-align:center;
+    cursor:pointer;box-shadow:0 2px 8px rgba(20,41,76,.06);transition:transform .08s,box-shadow .15s;}
+  .chip:active{transform:scale(.96);}
+  .chip svg{width:22px;height:22px;stroke:var(--navy);fill:none;stroke-width:1.8;
+    stroke-linecap:round;stroke-linejoin:round;display:block;margin:0 auto 4px;}
+  .chip span{font-size:11px;color:var(--navy);font-weight:600;}
+  .chip.active{background:var(--teal);box-shadow:0 6px 16px rgba(12,166,120,.35);}
+  .chip.active svg{stroke:#fff;} .chip.active span{color:#fff;}
+  .chip.soon{background:#f3f5f9;cursor:default;box-shadow:none;}
+  .chip.soon svg{stroke:var(--soon);} .chip.soon span{color:var(--soon);}
+  .chip .badge{display:block;font-size:9px;color:var(--teal-dark);margin-top:2px;font-weight:700;}
+
+  /* card + form */
+  .card{background:var(--card);border-radius:18px;padding:20px;box-shadow:0 4px 16px rgba(20,41,76,.07);}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 14px;}
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 6px;}
+  input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;font-size:16px;
+    outline:none;transition:border-color .15s;background:#fbfcfe;}
+  input:focus{border-color:var(--teal);}
+  .btn{width:100%;border:0;border-radius:14px;padding:15px;font-size:17px;font-weight:700;color:#fff;
+    background:var(--teal);cursor:pointer;margin-top:18px;transition:transform .08s,filter .15s;}
+  .btn:active{transform:scale(.98);} .btn:hover{filter:brightness(1.05);}
+  .btn.ghost{background:#eef1f6;color:var(--navy);}
+  .hint{font-size:12px;color:var(--muted);margin-top:10px;text-align:center;}
+
+  /* success */
+  .ok{background:#e1f5ee;border:1px solid #9fe1cb;border-radius:16px;padding:24px;text-align:center;
+    animation:pop .3s ease;}
+  @keyframes pop{from{transform:scale(.9);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .ok .check{width:56px;height:56px;margin:0 auto;}
+  .ok .check circle{fill:none;stroke:var(--teal-dark);stroke-width:2;}
+  .ok .check path{fill:none;stroke:var(--teal-dark);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;
+    stroke-dasharray:20;stroke-dashoffset:20;animation:draw .4s .15s forwards;}
+  @keyframes draw{to{stroke-dashoffset:0;}}
+  .ok h2{margin:8px 0 2px;font-size:18px;color:#04342C;}
+  .ok .who{font-size:24px;font-weight:800;color:#04342C;}
+  .ok .when{font-size:13px;color:var(--teal-dark);margin-top:4px;}
+
+  /* dashboard */
+  .bignum{font-size:84px;font-weight:800;color:var(--teal-dark);text-align:center;line-height:1;}
+  .biglabel{text-align:center;font-size:13px;letter-spacing:2px;color:var(--muted);margin-top:4px;}
+  .row{display:flex;justify-content:space-between;padding:11px 4px;border-bottom:1px solid var(--line);
+    font-size:15px;animation:fade .4s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
+  .row .t{color:var(--muted);font-size:13px;}
+  .empty{color:var(--muted);text-align:center;padding:20px;font-size:14px;}
+
+  .menu{font-size:16px;} .bal{font-size:30px;font-weight:800;color:var(--navy);margin:2px 0 6px;}
+  .flash{border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:12px;}
+  .flash.s{background:#e1f5ee;color:#04342C;} .flash.w{background:#fff4e6;color:#a5660b;}
+
+  /* dashboard extras */
+  .sec{margin:0 0 8px;font-weight:700;font-size:15px;}
+  .bignum.pulse{animation:numpop .6s ease;}
+  @keyframes numpop{0%{transform:scale(1);}30%{transform:scale(1.18);color:#0a8f66;}100%{transform:scale(1);}}
+  .row.latest{background:#e9f9f2;border-radius:8px;padding-left:8px;padding-right:8px;}
+  .row.latest span:first-child{font-weight:700;color:#04342C;}
+  .qrwrap{text-align:center;margin-top:16px;}
+  .qr{width:150px;height:150px;border-radius:12px;border:1px solid var(--line);background:#fff;padding:6px;}
+  .qrcap{font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:1px;font-weight:600;}
+  .chart{display:flex;align-items:flex-end;gap:4px;height:72px;}
+  .chart .bar{flex:1;background:linear-gradient(180deg,#0CA678,#0F6E56);border-radius:4px 4px 0 0;min-height:3px;}
+  .chartx{font-size:11px;color:var(--muted);margin-top:6px;text-align:center;}
+  .kpis{display:flex;gap:10px;margin-bottom:8px;}
+  .kpi{flex:1;background:#f6f8fb;border-radius:12px;padding:12px;text-align:center;}
+  .kpi b{display:block;font-size:24px;color:var(--navy);line-height:1.1;}
+  .kpi span{font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:600;}
+
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:50;}
+  .foot{text-align:center;font-size:11px;color:var(--muted);margin-top:16px;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app">
+  <header class="brand">
+    <h1>QR UniPass</h1>
+    <p>One QR for the whole campus</p>
+    <button class="dash-link" onclick="show('dashboard')">Dashboard</button>
+  </header>
+
+  <nav class="modules" id="modules"></nav>
+
+  <main id="view"></main>
+
+  <p class="foot">Prototype · HTML version · live across devices</p>
+</div>
+<canvas id="confetti"></canvas>
+
+<script>
+// ---------- Supabase data layer (shared cloud DB; live across devices) ----------
+const SUPABASE_URL = "https://ueiepzpwgmmiextweytk.supabase.co";
+const SUPABASE_KEY = "sb_publishable_4cbXAVeyoVJxxdYAxV01Ig_WlcS9epl";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const START = 200000;
+
+// admin gate: the Reset button only appears when the URL carries ?admin=<ADMIN_KEY>
+// presenter opens  .../?admin=gybm2026  ·  public QR points to the plain URL (no Reset)
+const ADMIN_KEY = "gybm2026";
+const isAdmin = new URLSearchParams(location.search).get("admin") === ADMIN_KEY;
+
+// in-memory cache, kept in sync via initial load + realtime
+let rowsA = [];   // attendance: {id,name,student_id,created_at}
+let rowsC = [];   // cafeteria:  {id,name,student_id,item,amount,created_at}
+
+const now  = () => new Date().toTimeString().slice(0,5);
+const hhmm = ts => ts ? new Date(ts).toTimeString().slice(0,5) : now();
+const fmt  = n => n.toLocaleString() + " ₫";
+const keyOf = r => ((r.student_id || r.id || r.name) || "").trim().toLowerCase();
+const upsert = (arr,row) => { const i=arr.findIndex(r=>r.id===row.id); if(i>=0) arr[i]=row; else arr.push(row); };
+
+async function loadAll(){
+  const [a,c] = await Promise.all([
+    sb.from("attendance").select("*").order("created_at",{ascending:true}),
+    sb.from("cafeteria").select("*").order("created_at",{ascending:true}),
+  ]);
+  if(!a.error && a.data) rowsA = a.data;
+  if(!c.error && c.data) rowsC = c.data;
+}
+
+async function addCheckin(name,id){
+  if(rowsA.some(r=>keyOf(r)===keyOf({name,id}))) return {dup:true};
+  const {data,error} = await sb.from("attendance")
+    .insert({name, student_id:id}).select().single();
+  if(error) return {error};
+  upsert(rowsA, data); return {rec:data};
+}
+function balance(name,id){
+  return rowsC.filter(r=>keyOf(r)===keyOf({name,id}))
+    .reduce((b,r)=>b - r.amount, START);
+}
+async function pay(name,id,item,amount){
+  if(balance(name,id)<amount) return {low:true};
+  const {data,error} = await sb.from("cafeteria")
+    .insert({name, student_id:id, item, amount}).select().single();
+  if(error) return {error};
+  upsert(rowsC, data); return {bal:balance(name,id)};
+}
+async function clearAttendance(){
+  const {error} = await sb.from("attendance").delete().gte("id",0);
+  if(!error) rowsA = [];
+  return {error};
+}
+
+// realtime: push every change from any device into the cache
+function subscribeRealtime(){
+  sb.channel("rt-attendance")
+    .on("postgres_changes",{event:"*",schema:"public",table:"attendance"},p=>{
+      if(p.eventType==="DELETE") rowsA = rowsA.filter(r=>r.id!==p.old.id);
+      else upsert(rowsA, p.new);
+      if(document.getElementById("cnt")) render("dashboard");  // re-render only if dashboard is on screen
+    }).subscribe();
+  sb.channel("rt-cafeteria")
+    .on("postgres_changes",{event:"*",schema:"public",table:"cafeteria"},p=>{
+      if(p.eventType==="DELETE") rowsC = rowsC.filter(r=>r.id!==p.old.id);
+      else upsert(rowsC, p.new);
+      if(document.getElementById("cnt")) render("dashboard");  // live revenue on dashboard
+    }).subscribe();
+}
+
+// ---------- icons ----------
+const ICON={
+  attendance:'<rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3" rx="1"/><path d="M9 13l2 2 4-4"/>',
+  cafeteria:'<path d="M8 3v4.5a1.7 1.7 0 0 0 3.4 0V3"/><path d="M9.7 7.5V21"/><path d="M16 3c-1.7 .5-2.8 2.7-2.8 5 0 1.6 1.2 2.6 2.8 2.6V21"/>',
+  library:'<path d="M12 6c-2.2-1.4-5.2-1.4-8 0v12c2.8-1.4 5.8-1.4 8 0 2.2-1.4 5.2-1.4 8 0V6c-2.8-1.4-5.8-1.4-8 0z"/><path d="M12 6v12"/>',
+  dormitory:'<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2"/><path d="M10 21v-4h4v4"/>'
+};
+const svg=n=>`<svg viewBox="0 0 24 24">${ICON[n]}</svg>`;
+
+// ---------- views ----------
+let current="attendance";
+let prevCount=-1;   // last attendance count, to detect new arrivals (pulse + celebrate)
+const MODS=[["attendance","Attendance",false],["cafeteria","Cafeteria",false],
+            ["library","Library",true],["dormitory","Dormitory",true]];
+
+function renderModules(){
+  document.getElementById("modules").innerHTML = MODS.map(([k,l,soon])=>{
+    const cls = soon?"chip soon":(current===k?"chip active":"chip");
+    const badge = soon?'<span class="badge">Soon</span>':'';
+    const onclick = soon?'' : `onclick="show('${k}')"`;
+    return `<button class="${cls}" ${onclick}>${svg(k)}<span>${l}</span>${badge}</button>`;
+  }).join("");
+}
+
+const MENU=[["Cơm tấm (Broken rice)",35000],["Phở",40000],["Bún chả",45000],["Bánh mì",20000],["Cà phê (Coffee)",15000]];
+
+function show(v){ current=(v==="dashboard")?current:v; renderModules(); render(v); }
+
+function render(v){
+  const el=document.getElementById("view");
+  if(v==="attendance"){
+    el.innerHTML=`<div class="card">
+      <p class="sub">Xin chào — check in below</p>
+      <label>Student ID</label><input id="ci_id" placeholder="e.g. 20231234">
+      <label>Name</label><input id="ci_name" placeholder="e.g. Nguyen Van A">
+      <button class="btn" onclick="doCheckin()">Check in</button>
+      <p class="hint">Enter your Student ID, or your name if you don't have one.</p>
+      <div id="ci_out" style="margin-top:14px"></div></div>`;
+  } else if(v==="cafeteria"){
+    const opts=MENU.map((m,i)=>`<option value="${i}">${m[0]} — ${fmt(m[1])}</option>`).join("");
+    el.innerHTML=`<div class="card">
+      <p class="sub">Cafeteria Payment</p>
+      <label>ID</label><input id="cf_id" placeholder="e.g. 20231234">
+      <label>Name</label><input id="cf_name" placeholder="e.g. Nguyen Van A">
+      <label>Choose your meal</label><select id="cf_meal" class="menu" style="width:100%;padding:13px;border-radius:12px;border:1.5px solid var(--line);font-size:15px;">${opts}</select>
+      <button class="btn" onclick="doPay()">Pay</button>
+      <div id="cf_out" style="margin-top:14px"></div></div>`;
+  } else if(v==="dashboard"){
+    const a=rowsA;
+    const inc = (prevCount>=0 && a.length>prevCount);   // a new check-in just arrived
+    const list = a.length ? a.slice().reverse().map((r,i)=>
+      `<div class="row${i===0?' latest':''}"><span>${r.name||("ID "+r.student_id)}</span><span class="t">${hhmm(r.created_at)}</span></div>`).join("")
+      : `<div class="empty">No check-ins yet. Open the QR and check in.</div>`;
+    el.innerHTML=`<div class="card">
+      <div class="bignum${inc?' pulse':''}" id="cnt">0</div>
+      <div class="biglabel">CHECKED IN · LIVE</div>
+      <div class="qrwrap"><img class="qr" src="qr.png" alt="Check-in QR"><div class="qrcap">SCAN TO CHECK IN</div></div>
+    </div>
+    ${a.length ? `<div class="card" style="margin-top:14px"><div class="sec">Check-ins over time</div>${checkinChart(a)}</div>` : ``}
+    <div class="card" style="margin-top:14px">
+      <div class="sec">Live attendance</div>
+      ${list}
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="sec">Cafeteria · live</div>
+      ${cafePanel()}
+    </div>
+    <div style="margin-top:14px">
+      ${isAdmin ? `<button class="btn ghost" onclick="resetAll()">Reset</button>` : ``}
+      <button class="btn ghost" style="margin-top:${isAdmin?8:0}px" onclick="show('attendance')">← Back to check-in</button>
+    </div>`;
+    const cntEl=document.getElementById("cnt");
+    if(prevCount<0 || a.length!==prevCount) countUp(a.length); else cntEl.textContent=a.length;
+    if(inc) confetti();                 // celebrate the new arrival on the projector
+    prevCount=a.length;
+  }
+}
+
+async function doCheckin(){
+  const id=document.getElementById("ci_id").value.trim();
+  const name=document.getElementById("ci_name").value.trim();
+  const out=document.getElementById("ci_out");
+  if(!id && !name){ out.innerHTML=`<div class="flash w">Please enter your name or Student ID.</div>`; return; }
+  out.innerHTML=`<div class="flash s">Checking in…</div>`;
+  const res=await addCheckin(name,id);
+  if(res.error){ out.innerHTML=`<div class="flash w">Couldn't reach the server. Please try again.</div>`; return; }
+  if(res.dup){ out.innerHTML=`<div class="flash w">You're already checked in.</div>`; return; }
+  const who=res.rec.name||("ID "+res.rec.student_id);
+  out.innerHTML=`<div class="ok"><svg class="check" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M16 27l7 7 13-15"/></svg>
+    <h2>You're checked in!</h2><div class="who">${who}</div><div class="when">${hhmm(res.rec.created_at)} · welcome aboard</div></div>`;
+  confetti();
+}
+
+async function doPay(){
+  const id=document.getElementById("cf_id").value.trim();
+  const name=document.getElementById("cf_name").value.trim();
+  const out=document.getElementById("cf_out");
+  if(!id && !name){ out.innerHTML=`<div class="flash w">Please enter your name or ID.</div>`; return; }
+  const i=+document.getElementById("cf_meal").value; const [item,amt]=MENU[i];
+  out.innerHTML=`<div class="flash s">Processing…</div>`;
+  const res=await pay(name,id,item,amt);
+  if(res.error){ out.innerHTML=`<div class="flash w">Couldn't reach the server. Please try again.</div>`; return; }
+  if(res.low){ out.innerHTML=`<div class="flash w">Not enough balance.</div>`; return; }
+  out.innerHTML=`<div class="flash s">Paid ${fmt(amt)} for ${item}.</div>
+    <div>Balance</div><div class="bal">${fmt(res.bal)}</div>`;
+}
+
+async function resetAll(){
+  if(!confirm("Delete all check-ins?")) return;
+  const {error}=await clearAttendance();
+  if(error){ alert("Couldn't reset. Please try again."); return; }
+  render("dashboard");
+}
+
+// cumulative check-ins per minute → bar chart
+function checkinChart(rows){
+  if(!rows.length) return "";
+  const buckets={};
+  rows.forEach(r=>{ const k=hhmm(r.created_at); buckets[k]=(buckets[k]||0)+1; });
+  const keys=Object.keys(buckets).sort();
+  let cum=0; const cums=keys.map(k=>cum+=buckets[k]);
+  const max=cums[cums.length-1]||1;
+  const bars=cums.map((c,i)=>`<div class="bar" style="height:${Math.round(c/max*100)}%" title="${keys[i]} · ${c}"></div>`).join("");
+  return `<div class="chart">${bars}</div><div class="chartx">${keys[0]} — ${keys[keys.length-1]}</div>`;
+}
+
+// cafeteria live: meal count, revenue, recent transactions (from the same Supabase)
+function cafePanel(){
+  const c=rowsC;
+  const revenue=c.reduce((s,r)=>s+(r.amount||0),0);
+  const txns = c.length ? c.slice().reverse().slice(0,5).map(r=>
+    `<div class="row"><span>${r.item}</span><span class="t">${fmt(r.amount)} · ${hhmm(r.created_at)}</span></div>`).join("")
+    : `<div class="empty">No purchases yet.</div>`;
+  return `<div class="kpis">
+      <div class="kpi"><b>${c.length}</b><span>MEALS</span></div>
+      <div class="kpi"><b>${revenue.toLocaleString()}</b><span>REVENUE ₫</span></div>
+    </div>${txns}`;
+}
+
+// animate the big number (skip animation when the tab is hidden so the value is always correct)
+let cntTimer=null;
+function countUp(target){
+  const el=document.getElementById("cnt"); if(!el) return;
+  if(cntTimer){ clearInterval(cntTimer); cntTimer=null; }
+  if(document.hidden || target<=0){ el.textContent=Math.max(0,target); return; }
+  let cur=0; const step=Math.max(1,Math.ceil(target/20));
+  el.textContent=cur;
+  cntTimer=setInterval(()=>{ cur=Math.min(target,cur+step); el.textContent=cur; if(cur>=target){ clearInterval(cntTimer); cntTimer=null; } },30);
+}
+
+// (live updates now come from Supabase realtime — see subscribeRealtime)
+
+// confetti burst
+function confetti(){
+  const c=document.getElementById("confetti"), ctx=c.getContext("2d");
+  c.width=innerWidth; c.height=innerHeight;
+  const cols=["#0CA678","#14294C","#FA5252","#FAB005","#4DABF7"]; let p=[];
+  for(let i=0;i<130;i++) p.push({x:innerWidth/2,y:innerHeight/3,vx:(Math.random()-.5)*13,vy:Math.random()*-13-3,col:cols[i%5],s:Math.random()*7+4,r:Math.random()*6});
+  let t=0;(function f(){ctx.clearRect(0,0,c.width,c.height);p.forEach(o=>{o.vy+=.45;o.x+=o.vx;o.y+=o.vy;o.r+=.12;ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.r);ctx.fillStyle=o.col;ctx.fillRect(-o.s/2,-o.s/2,o.s,o.s);ctx.restore();});if(++t<130)requestAnimationFrame(f);else ctx.clearRect(0,0,c.width,c.height);})();
+}
+
+// init
+renderModules(); render("attendance");
+(async()=>{ await loadAll(); subscribeRealtime(); if(current==="dashboard") render("dashboard"); })();
+</script>
+</body>
+</html>
