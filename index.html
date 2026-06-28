@@ -428,16 +428,28 @@ function countUp(target){
 
 // (live updates now come from Supabase realtime — see subscribeRealtime)
 
-// big arrival / milestone announcement on the dashboard
-let arrivalTimer=null;
-function announce(label, big){
-  const el=document.getElementById("arrival"); if(!el) return;
+// arrival / milestone announcements — queued so a burst rolls through readably (never overlaps)
+let arrivalQ=[], arrivalBusy=false;
+function pushArrival(label, text, priority){
+  if(priority){ arrivalQ.unshift({label, text}); }
+  else {
+    arrivalQ.push({label, text});
+    if(arrivalQ.length>5){                       // burst: collapse to a count so names don't blur past
+      arrivalQ=[{label:"WELCOME", text:"+"+arrivalQ.length+" just joined"}];
+    }
+  }
+  if(!arrivalBusy) drainArrival();
+}
+function drainArrival(){
+  const el=document.getElementById("arrival"); if(!el){ arrivalBusy=false; arrivalQ=[]; return; }
+  const item=arrivalQ.shift();
+  if(!item){ arrivalBusy=false; el.classList.remove("show"); return; }
+  arrivalBusy=true;
   el.innerHTML='<div class="lab"></div><div class="nm"></div>';
-  el.querySelector(".lab").textContent=label;
-  el.querySelector(".nm").textContent=big;
+  el.querySelector(".lab").textContent=item.label;
+  el.querySelector(".nm").textContent=item.text;
   el.classList.add("show");
-  clearTimeout(arrivalTimer);
-  arrivalTimer=setTimeout(()=>el.classList.remove("show"), 2600);
+  setTimeout(drainArrival, arrivalQ.length ? 1100 : 1900);   // hold each ~1.1s; let the last one linger
 }
 
 // celebrate a new check-in: confetti + name, with a bigger moment every 10 (milestone)
@@ -448,10 +460,10 @@ function celebrate(rows, inc){
   const crossed = Math.floor(rows.length/10) > Math.floor(Math.max(prevCount,0)/10);
   if(crossed && rows.length>=10){
     for(let i=0;i<3;i++) setTimeout(confetti, i*200);   // bigger burst on a milestone
-    announce("MILESTONE", rows.length+" CHECKED IN");
+    pushArrival("MILESTONE", rows.length+" CHECKED IN", true);
   }else{
     confetti();
-    announce("JUST CHECKED IN", name);
+    pushArrival("JUST CHECKED IN", name, false);
   }
 }
 
