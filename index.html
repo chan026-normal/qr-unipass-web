@@ -146,7 +146,7 @@ const START = 200000;
 
 // admin gate: the Reset button only appears when the URL carries ?admin=<ADMIN_KEY>
 // presenter opens  .../?admin=gybm2026  ·  public QR points to the plain URL (no Reset)
-const ADMIN_KEY = "gybm2026";
+const ADMIN_KEY = "chan2026";
 const isAdmin = new URLSearchParams(location.search).get("admin") === ADMIN_KEY;
 
 // in-memory cache, kept in sync via initial load + realtime
