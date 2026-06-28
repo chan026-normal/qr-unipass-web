@@ -102,6 +102,15 @@
   .kpi b{display:block;font-size:24px;color:var(--navy);line-height:1.1;}
   .kpi span{font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:600;}
 
+  /* combined "all modules" bar chart */
+  .cbar{display:flex;align-items:center;gap:9px;margin:11px 0;}
+  .cbar-ic{display:flex;}
+  .cbar-ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .cbar-lab{width:74px;font-size:12px;font-weight:600;}
+  .cbar-track{flex:1;height:15px;background:var(--line);border-radius:8px;overflow:hidden;}
+  .cbar-fill{height:100%;border-radius:8px;transition:width .5s ease;min-width:3px;}
+  .cbar-n{width:28px;text-align:right;font-weight:800;font-size:14px;}
+
   /* arrival announcement (big name / milestone on the projector) */
   .arrival{position:fixed;left:50%;top:16%;transform:translateX(-50%) translateY(-16px);
     background:linear-gradient(135deg,#0CA678,#0F6E56);color:#fff;padding:16px 26px;border-radius:18px;
@@ -203,6 +212,8 @@ function toggleTheme(){
 // in-memory cache, kept in sync via initial load + realtime
 let rowsA = [];   // attendance: {id,name,student_id,created_at}
 let rowsC = [];   // cafeteria:  {id,name,student_id,item,amount,created_at}
+let rowsL = [];   // library:    {id,name,student_id,action,created_at}
+let rowsD = [];   // dormitory:  {id,name,student_id,action,created_at}
 
 const now  = () => new Date().toTimeString().slice(0,5);
 const hhmm = ts => ts ? new Date(ts).toTimeString().slice(0,5) : now();
@@ -211,12 +222,16 @@ const keyOf = r => ((r.student_id || r.id || r.name) || "").trim().toLowerCase()
 const upsert = (arr,row) => { const i=arr.findIndex(r=>r.id===row.id); if(i>=0) arr[i]=row; else arr.push(row); };
 
 async function loadAll(){
-  const [a,c] = await Promise.all([
+  const [a,c,l,d] = await Promise.all([
     sb.from("attendance").select("*").order("created_at",{ascending:true}),
     sb.from("cafeteria").select("*").order("created_at",{ascending:true}),
+    sb.from("library").select("*").order("created_at",{ascending:true}),
+    sb.from("dormitory").select("*").order("created_at",{ascending:true}),
   ]);
   if(!a.error && a.data) rowsA = a.data;
   if(!c.error && c.data) rowsC = c.data;
+  if(!l.error && l.data) rowsL = l.data;
+  if(!d.error && d.data) rowsD = d.data;
 }
 
 async function addCheckin(name,id){
@@ -237,10 +252,24 @@ async function pay(name,id,item,amount){
   if(error) return {error};
   upsert(rowsC, data); return {bal:balance(name,id)};
 }
-async function clearAttendance(){
-  const {error} = await sb.from("attendance").delete().gte("id",0);
-  if(!error) rowsA = [];
-  return {error};
+async function addLibrary(name,id,action){
+  const {data,error} = await sb.from("library")
+    .insert({name, student_id:id, action}).select().single();
+  if(error) return {error};
+  upsert(rowsL, data); return {rec:data};
+}
+async function addDorm(name,id,action){
+  const {data,error} = await sb.from("dormitory")
+    .insert({name, student_id:id, action}).select().single();
+  if(error) return {error};
+  upsert(rowsD, data); return {rec:data};
+}
+async function clearAll(){
+  const tables=["attendance","cafeteria","library","dormitory"];
+  const res=await Promise.all(tables.map(t=>sb.from(t).delete().gte("id",0)));
+  const error=res.find(r=>r.error);
+  if(!error){ rowsA=[]; rowsC=[]; rowsL=[]; rowsD=[]; }
+  return error||{};
 }
 
 // realtime: push every change from any device into the cache
@@ -256,6 +285,18 @@ function subscribeRealtime(){
       if(p.eventType==="DELETE") rowsC = rowsC.filter(r=>r.id!==p.old.id);
       else upsert(rowsC, p.new);
       if(document.getElementById("cnt")) render("dashboard");  // live revenue on dashboard
+    }).subscribe();
+  sb.channel("rt-library")
+    .on("postgres_changes",{event:"*",schema:"public",table:"library"},p=>{
+      if(p.eventType==="DELETE") rowsL = rowsL.filter(r=>r.id!==p.old.id);
+      else upsert(rowsL, p.new);
+      if(document.getElementById("cnt")) render("dashboard");
+    }).subscribe();
+  sb.channel("rt-dormitory")
+    .on("postgres_changes",{event:"*",schema:"public",table:"dormitory"},p=>{
+      if(p.eventType==="DELETE") rowsD = rowsD.filter(r=>r.id!==p.old.id);
+      else upsert(rowsD, p.new);
+      if(document.getElementById("cnt")) render("dashboard");
     }).subscribe();
 }
 
@@ -273,7 +314,7 @@ let current="attendance";
 let prevCount=-1;   // last attendance count, to detect new arrivals (pulse + celebrate)
 let presentMode=false;   // projector full-screen view
 const MODS=[["attendance","Attendance",false],["cafeteria","Cafeteria",false],
-            ["library","Library",true],["dormitory","Dormitory",true]];
+            ["library","Library",false],["dormitory","Dormitory",false]];
 
 function renderModules(){
   document.getElementById("modules").innerHTML = MODS.map(([k,l,soon])=>{
@@ -307,6 +348,24 @@ function render(v){
       <label>Choose your meal</label><select id="cf_meal" class="menu" style="width:100%;padding:13px;border-radius:12px;border:1.5px solid var(--line);font-size:15px;">${opts}</select>
       <button class="btn" onclick="doPay()">Pay</button>
       <div id="cf_out" style="margin-top:14px"></div></div>`;
+  } else if(v==="library"){
+    el.innerHTML=`<div class="card">
+      <p class="sub">Library — borrow & return</p>
+      <label>Student ID</label><input id="lb_id" placeholder="e.g. 20231234">
+      <label>Name</label><input id="lb_name" placeholder="e.g. Nguyen Van A">
+      <button class="btn" onclick="doLibrary('borrow')">Borrow a book</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="doLibrary('return')">Return a book</button>
+      <p class="hint">Enter your Student ID, or your name if you don't have one.</p>
+      <div id="lb_out" style="margin-top:14px"></div></div>`;
+  } else if(v==="dormitory"){
+    el.innerHTML=`<div class="card">
+      <p class="sub">Dormitory — access</p>
+      <label>Student ID</label><input id="dm_id" placeholder="e.g. 20231234">
+      <label>Name</label><input id="dm_name" placeholder="e.g. Nguyen Van A">
+      <button class="btn" onclick="doDorm('entry')">Enter</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="doDorm('exit')">Exit</button>
+      <p class="hint">Enter your Student ID, or your name if you don't have one.</p>
+      <div id="dm_out" style="margin-top:14px"></div></div>`;
   } else if(v==="dashboard"){
     const a=rowsA;
     const inc = (prevCount>=0 && a.length>prevCount);   // a new check-in just arrived
@@ -335,6 +394,10 @@ function render(v){
         <div class="biglabel">CHECKED IN · LIVE</div>
         ${goalHTML}
         <div class="qrwrap"><img class="qr" src="qr.png" alt="Check-in QR"><div class="qrcap">SCAN TO CHECK IN</div></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="sec">Campus activity · all modules</div>
+        ${campusChart()}
       </div>
       ${a.length ? `<div class="card" style="margin-top:14px"><div class="sec">Total checked in</div>${checkinChart(a)}</div>` : ``}
       <div class="card" style="margin-top:14px">
@@ -387,9 +450,33 @@ async function doPay(){
     <div>Balance</div><div class="bal">${fmt(res.bal)}</div>`;
 }
 
+async function doLibrary(action){
+  const id=document.getElementById("lb_id").value.trim();
+  const name=document.getElementById("lb_name").value.trim();
+  const out=document.getElementById("lb_out");
+  if(!id && !name){ out.innerHTML=`<div class="flash w">Please enter your name or Student ID.</div>`; return; }
+  out.innerHTML=`<div class="flash s">Processing…</div>`;
+  const res=await addLibrary(name,id,action);
+  if(res.error){ out.innerHTML=`<div class="flash w">Couldn't reach the server. Please try again.</div>`; return; }
+  const who=res.rec.name||("ID "+res.rec.student_id);
+  out.innerHTML=`<div class="flash s">${action==='borrow'?'Borrowed a book':'Returned a book'} — ${who}.</div>`;
+}
+async function doDorm(action){
+  const id=document.getElementById("dm_id").value.trim();
+  const name=document.getElementById("dm_name").value.trim();
+  const out=document.getElementById("dm_out");
+  if(!id && !name){ out.innerHTML=`<div class="flash w">Please enter your name or Student ID.</div>`; return; }
+  out.innerHTML=`<div class="flash s">Processing…</div>`;
+  const res=await addDorm(name,id,action);
+  if(res.error){ out.innerHTML=`<div class="flash w">Couldn't reach the server. Please try again.</div>`; return; }
+  const who=res.rec.name||("ID "+res.rec.student_id);
+  out.innerHTML=`<div class="flash s">${action==='entry'?'Entered the dormitory':'Exited the dormitory'} — ${who}.</div>`;
+}
+
 async function resetAll(){
-  if(!confirm("Delete all check-ins?")) return;
-  const {error}=await clearAttendance();
+  if(!confirm("Delete ALL data (attendance, cafeteria, library, dormitory)?")) return;
+  prevCount=-1;
+  const {error}=await clearAll();
   if(error){ alert("Couldn't reset. Please try again."); return; }
   render("dashboard");
 }
@@ -420,6 +507,24 @@ function cafePanel(){
       <div class="kpi"><b>${c.length}</b><span>MEALS</span></div>
       <div class="kpi"><b>${revenue.toLocaleString()}</b><span>REVENUE ₫</span></div>
     </div>${txns}`;
+}
+
+// one combined bar chart of all four modules' activity — the "whole campus" view
+function campusChart(){
+  const data=[
+    ["attendance","Attendance",rowsA.length,"#0CA678"],
+    ["cafeteria","Cafeteria",rowsC.length,"#F59F00"],
+    ["library","Library",rowsL.length,"#4DABF7"],
+    ["dormitory","Dormitory",rowsD.length,"#845EF7"],
+  ];
+  const max=Math.max(1, ...data.map(d=>d[2]));
+  return data.map(([icon,label,n,col])=>`
+    <div class="cbar">
+      <div class="cbar-ic" style="color:${col}">${svg(icon)}</div>
+      <div class="cbar-lab">${label}</div>
+      <div class="cbar-track"><div class="cbar-fill" style="width:${Math.max(3,Math.round(n/max*100))}%;background:${col}"></div></div>
+      <div class="cbar-n">${n}</div>
+    </div>`).join("");
 }
 
 // animate the big number (skip animation when the tab is hidden so the value is always correct)
