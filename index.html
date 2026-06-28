@@ -97,6 +97,27 @@
 
   #confetti{position:fixed;inset:0;pointer-events:none;z-index:50;}
   .foot{text-align:center;font-size:11px;color:var(--muted);margin-top:16px;}
+
+  /* dark mode — follows the device setting */
+  @media (prefers-color-scheme: dark){
+    :root{
+      --navy:#dfe8f5; --teal:#1bd6a0; --teal-dark:#3aebad;
+      --bg:#0b1525; --card:#16243d; --ink:#e7eff9;
+      --muted:#9db0c6; --line:#28384f; --soon:#5d6e84;
+    }
+    input{background:#0f1d31;color:var(--ink);}
+    .menu{background:#0f1d31;color:var(--ink);}
+    .btn.ghost{background:#22334e;color:var(--navy);}
+    .chip.soon{background:#16233a;}
+    .kpi{background:#1d2d48;}
+    .chart .bar{background:linear-gradient(180deg,#5cf3c4,#15c08c);}
+    .row.latest{background:#15402f;}
+    .row.latest span:first-child{color:#c4f6e2;}
+    .ok{background:#143a2c;border-color:#1f5b46;}
+    .ok h2,.ok .who{color:#e0f7ec;}
+    .flash.s{background:#143a2c;color:#cdeede;}
+    .flash.w{background:#3d2f12;color:#f1cf8a;}
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -301,16 +322,19 @@ async function resetAll(){
   render("dashboard");
 }
 
-// cumulative check-ins per minute → bar chart
+// cumulative check-ins in 10-second buckets → a line that visibly climbs during a short live demo
 function checkinChart(rows){
   if(!rows.length) return "";
-  const buckets={};
-  rows.forEach(r=>{ const k=hhmm(r.created_at); buckets[k]=(buckets[k]||0)+1; });
-  const keys=Object.keys(buckets).sort();
-  let cum=0; const cums=keys.map(k=>cum+=buckets[k]);
-  const max=cums[cums.length-1]||1;
-  const bars=cums.map((c,i)=>`<div class="bar" style="height:${Math.round(c/max*100)}%" title="${keys[i]} · ${c}"></div>`).join("");
-  return `<div class="chart">${bars}</div><div class="chartx">${keys[0]} — ${keys[keys.length-1]}</div>`;
+  const BUCKET=10000;   // 10 seconds
+  const counts={};
+  rows.forEach(r=>{ const k=Math.floor(new Date(r.created_at).getTime()/BUCKET); counts[k]=(counts[k]||0)+1; });
+  const keys=Object.keys(counts).map(Number).sort((a,b)=>a-b);
+  let run=0; const cum={}; keys.forEach(k=>{ run+=counts[k]; cum[k]=run; });
+  const shown=keys.slice(-24);   // last ~4 minutes
+  const max=run||1;
+  const bars=shown.map(k=>`<div class="bar" style="height:${Math.max(6,Math.round(cum[k]/max*100))}%" title="${cum[k]}"></div>`).join("");
+  const t=k=>new Date(k*BUCKET).toTimeString().slice(0,8);
+  return `<div class="chart">${bars}</div><div class="chartx">${t(shown[0])} — ${t(shown[shown.length-1])}</div>`;
 }
 
 // cafeteria live: meal count, revenue, recent transactions (from the same Supabase)
